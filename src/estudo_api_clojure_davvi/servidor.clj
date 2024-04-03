@@ -1,8 +1,10 @@
 (ns estudo-api-clojure-davvi.servidor
-  (:require [io.pedestal.http.route :as route]
+  (:require
+            [io.pedestal.http.route :as route]
             [io.pedestal.http :as http]
             [io.pedestal.test :as test]
-            [estudo-api-clojure-davvi.database :as database]))
+            [estudo-api-clojure-davvi.database :as database]
+            [io.pedestal.interceptor :as i]))
 (defn assoc-store [contexto]
   (update contexto :request assoc :store database/store)
   )
@@ -55,18 +57,21 @@
 
 (def routes (route/expand-routes
               #{["/hello" :get funcao-hello :route-name :hello-world]
-                ["/tarefa" :post [db-interceptor criar-tarefa] :route-name :criar-tarefa]
-                ["/tarefa" :get [db-interceptor listar-tarefas] :route-name :listar-tarefas]
-                ["/tarefa/:id" :delete [db-interceptor deleta-tarefa] :route-name :deleta-tarefa]
-                ["/tarefa/:id" :patch [db-interceptor atualiza-tarefa] :route-name :atualiza-tarefa]
+                ["/tarefa" :post criar-tarefa :route-name :criar-tarefa]
+                ["/tarefa" :get listar-tarefas :route-name :listar-tarefas]
+                ["/tarefa/:id" :delete deleta-tarefa :route-name :deleta-tarefa]
+                ["/tarefa/:id" :patch atualiza-tarefa :route-name :atualiza-tarefa]
                 }))
 
 
-(def service-map {::http/routes routes
+(def service-map-base {::http/routes routes
                   ::http/port   9999
                   ::http/type   :jetty
                   ::http/join?  false})                     ;permite o não travamento da thread do clojure. útil para desenvolvimento (testes)
 
+(def service-map (-> service-map-base
+                                 (http/default-interceptors)
+                                 (update ::http/interceptors conj (i/interceptor db-interceptor))))
 (def server (atom nil))
 
 (defn start-server []
